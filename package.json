@@ -1,0 +1,50 @@
+{
+  "name": "arsha-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Arsha AI chatbot.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "nodemon server.js",
+    "dev": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "arsha",
+    "ai",
+    "chatbot",
+    "backend",
+    "express",
+    "groq",
+    "mysql"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/speech": "^7.2.0",
+    "@google-cloud/translate": "^9.2.0",
+    "@google/generative-ai": "^0.24.1",
+    "@langchain/core": "^0.3.67",
+    "@langchain/openai": "^0.6.4",
+    "@vitalets/google-translate-api": "^9.2.1",
+    "axios": "^1.11.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.5.0",
+    "franc": "^6.2.0",
+    "franc-min": "^6.2.0",
+    "google-search-results-nodejs": "^2.1.0",
+    "groq-sdk": "^0.30.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "mysql2": "^3.14.5",
+    "openai": "^5.12.0",
+    "serpapi": "^2.2.1",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
