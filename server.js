@@ -245,7 +245,8 @@ app.post('/chat', async (req, res) => {
         res.status(500).json({ error: 'Failed to process your request. Please try again.' });
     }
 });
+//                    👇 Yahan '0.0.0.0' add karein
+app.listen(port, '0.0.0.0', () => {
+    console.log(`🚀 Arsha's server running on port: ${port}`);
 
-app.listen(port, () => {
-    console.log(`🚀 Arsha's server running on http://localhost:${port}`);
 });
