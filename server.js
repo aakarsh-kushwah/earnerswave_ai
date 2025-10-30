@@ -26,7 +26,7 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000', // Restrict to your frontend URL in production
+    origin: process.env.CORS_ORIGIN || 'https://earnerswave-ai.onrender.com', // Restrict to your frontend URL in production
 }));
 
 // Body parser for JSON requests
