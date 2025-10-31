@@ -21,31 +21,27 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // --- CORE MIDDLEWARE ---
-
-// --- FIX: Render 'trust proxy' setting ---
-// Yeh line Render ke rate-limit error ko fix karne ke liye zaroori hai
+// FIX: Render 'trust proxy' setting
 app.set('trust proxy', 1);
-// --- END FIX ---
 
 app.use(helmet());
 
-// --- FIX YAHAN HAI: CORS ko multiple origins handle karne dein ---
+// FIX: Multiple CORS Origins Handle Karna
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',');
 
 app.use(cors({
     origin: function (origin, callback) {
-        // 'origin' undefined hota hai (jaise Postman se request karne par)
-        // Ya agar origin list mein hai, toh usey allow karo
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
+            console.error(`CORS Error: Origin ${origin} not allowed.`); // Log error
             callback(new Error('Not allowed by CORS'));
         }
     }
 }));
 // --- END FIX ---
 
-app.use(bodyParser.json());
+app.use(bodyParser.json()); // bodyParser.json() deprecated nahi hai, express.json() zaroori nahi hai
 
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -66,9 +62,8 @@ const groqKeys = (process.env.GROQ_API_KEYS || '').split(',');
 let currentKeyIndex = 0;
 
 function getNextGroqInstance() {
-    // Yeh error aapke logs mein aa raha hai.
-    // Iska fix Render ke Environment Variables mein hai
     if (groqKeys.length === 0 || !groqKeys[0]) {
+        console.error("GROQ_API_KEYS not found. Please set in Render Environment.");
         throw new Error("GROQ_API_KEYS not found. Please set in Render Environment.");
     }
     const key = groqKeys[currentKeyIndex];
@@ -120,7 +115,6 @@ async function handleDownlineQuery({ token, userName, userLanguage }) {
         if (!res.ok) throw new Error(`API failed with status ${res.status}`);
         const data = await res.json();
         
-        // Flatten logic
         const flattenMembers = (members) => { 
             let flat = [];
             if (!Array.isArray(members)) return flat;
@@ -179,11 +173,13 @@ async function handleDefaultAIResponse({ message, systemPromptContent }) {
 
 const getChatHistory = async (req, res, next) => {
     // Database logic hata diya. Hamesha khaali history bhejega.
+    console.log("Request received for /chat-history");
     res.json({ history: [] });
 };
 
 const postChatMessage = async (req, res, next) => {
     try {
+        console.log("Request received for /chat");
         const { message, token, isRegistered, replyTo, guestId } = req.body;
         const lastUserMessage = message[message.length - 1].content;
         const userLanguage = detectLanguage(lastUserMessage);
@@ -195,8 +191,6 @@ const postChatMessage = async (req, res, next) => {
             userProfile = await getUserProfile(token);
             userName = userProfile?.data?.first_name || "Dost";
         }
-
-        // Database save logic (saveChatMessage) hata diya
 
         const lastUserMessageLower = lastUserMessage.toLowerCase();
         const profileKeywords = ["profile", "balance", "paisa", "kamai"];
@@ -223,9 +217,8 @@ const postChatMessage = async (req, res, next) => {
             const systemPromptContent = getSystemPrompt(isRegistered, userName, replyTo);
             responsePayload = await handleDefaultAIResponse({ message, systemPromptContent });
         }
-
-        // Database save logic (saveChatMessage) hata diya
-
+        
+        console.log("Sending reply:", responsePayload.reply);
         res.json(responsePayload);
     } catch (error) {
         next(error); 
@@ -258,6 +251,7 @@ app.use((err, req, res, next) => {
 });
 
 
+// --- SERVER INITIALIZATION ---
 app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Arsha's server running on port: ${port}`);
 });
