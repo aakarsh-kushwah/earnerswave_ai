@@ -1,3 +1,5 @@
+// 📁 server.js (BINA DATABASE WALA)
+
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -8,11 +10,10 @@ import { Groq } from 'groq-sdk';
 import fetch from 'node-fetch';
 import { franc } from 'franc-min';
 
-// --- Services & DB ---
-import { saveChatMessage } from './services/dbService.js';
+// --- Services ---
+// Database waali files (db.js, dbService.js) ko hata diya gaya hai
 import { getUserProfile } from './services/userService.js';
 import { unregisteredUserPrompt, registeredUserPrompt, mediaPaths } from './arsha-prompts.js';
-import db from './db.js';
 
 // --- CONFIGURATION ---
 dotenv.config();
@@ -21,21 +22,20 @@ const port = process.env.PORT || 5000;
 
 // --- CORE MIDDLEWARE ---
 
-// Helmet for essential security headers
+// --- FIX: Render 'trust proxy' setting ---
+// Yeh line Render ke rate-limit error ko fix karne ke liye zaroori hai
+app.set('trust proxy', 1);
+// --- END FIX ---
+
 app.use(helmet());
-
-// CORS configuration
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'https://earnerswave-ai.onrender.com', // Restrict to your frontend URL in production
+    origin: process.env.CORS_ORIGIN, // Yeh Render ke Environment se aayega
 }));
-
-// Body parser for JSON requests
 app.use(bodyParser.json());
 
-// Rate limiter to prevent abuse
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 100,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again after 15 minutes." },
@@ -52,8 +52,10 @@ const groqKeys = (process.env.GROQ_API_KEYS || '').split(',');
 let currentKeyIndex = 0;
 
 function getNextGroqInstance() {
+    // Yeh error aapke logs mein aa raha hai.
+    // Iska fix Render ke Environment Variables mein hai
     if (groqKeys.length === 0 || !groqKeys[0]) {
-        throw new Error("GROQ_API_KEYS not found in .env file.");
+        throw new Error("GROQ_API_KEYS not found. Please set in Render Environment.");
     }
     const key = groqKeys[currentKeyIndex];
     currentKeyIndex = (currentKeyIndex + 1) % groqKeys.length;
@@ -61,24 +63,11 @@ function getNextGroqInstance() {
 }
 
 // --- BUSINESS LOGIC (SERVICES) ---
-
-/**
- * Detects language of a message (Hindi or English).
- * @param {string} message - The user's message.
- * @returns {'hi' | 'en'} - The detected language code.
- */
 function detectLanguage(message) {
     const langCode = franc(message);
     return langCode === 'hin' ? 'hi' : 'en';
 }
 
-/**
- * Constructs the system prompt for the AI model.
- * @param {boolean} isRegistered - Whether the user is logged in.
- * @param {string} userName - The user's name.
- * @param {object} replyTo - The message being replied to.
- * @returns {string} The complete system prompt.
- */
 function getSystemPrompt(isRegistered, userName, replyTo) {
     const basePrompt = isRegistered ? registeredUserPrompt : unregisteredUserPrompt;
     const nameInstruction = (userName && userName !== "Dost")
@@ -95,11 +84,7 @@ function getSystemPrompt(isRegistered, userName, replyTo) {
     return `${basePrompt}\n${nameInstruction}\n${smartAssistantRule}${replyToInstruction}`.trim();
 }
 
-/**
- * Handles profile-related queries using keywords.
- */
 async function handleProfileQuery({ token, userName, lastUserMessage, userLanguage, userProfile }) {
-    // ... (This function remains the same as your original code)
     if (!token) return { reply: userLanguage === 'hi' ? "⚠️ Login zaroori hai." : "⚠️ Please log in first." };
     if (!userProfile || !userProfile.data) return { reply: userLanguage === 'hi' ? "⚠️ Profile details fetch karne mein samasya aa rahi hai." : "⚠️ There was a problem fetching your profile details." };
     const u = userProfile.data;
@@ -114,17 +99,25 @@ async function handleProfileQuery({ token, userName, lastUserMessage, userLangua
     return { reply, user: u };
 }
 
-/**
- * Handles downline/team-related queries.
- */
 async function handleDownlineQuery({ token, userName, userLanguage }) {
-    // ... (This function remains the same as your original code, but could be improved with better error handling)
     if (!token) return { reply: userLanguage === 'hi' ? "⚠️ Team dekhne ke liye login zaroori hai." : "⚠️ Please log in first to view your team members." };
     try {
         const res = await fetch(`${process.env.REACT_APP_PROTOCOL}/api/user/downline-members`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error(`API failed with status ${res.status}`);
         const data = await res.json();
-        const flattenMembers = (members) => { /* Helper function inside or outside */ return []; }; // Define or import your flattenMembers logic
+        
+        // Flatten logic
+        const flattenMembers = (members) => { 
+            let flat = [];
+            if (!Array.isArray(members)) return flat;
+            members.forEach(m => {
+                flat.push(m);
+                if (m.children && m.children.length > 0) {
+                    flat = flat.concat(flattenMembers(m.children));
+                }
+            });
+            return flat;
+        };
         const members = flattenMembers(data.data);
         return { reply: userLanguage === 'hi' ? `👥 ${userName}, aapki team mein total **${members.length}** members hain.` : `👥 ${userName}, your team has a total of **${members.length}** members.` };
     } catch (err) {
@@ -133,22 +126,13 @@ async function handleDownlineQuery({ token, userName, userLanguage }) {
     }
 }
 
-
-/**
- * Handles media-related queries.
- */
 async function handleMediaQuery({ userName, lastUserMessage }) {
-    // ... (This function remains the same as your original code)
     if (lastUserMessage.includes("combo") || lastUserMessage.includes("kit")) return { reply: `Bilkul ${userName}, yeh dekhiye hamara bestseller **Combo Kit**! [IMAGE: ${mediaPaths.images.comboKit}]` };
     if (lastUserMessage.includes("serum")) return { reply: `Yeh lijiye, hamare amazing **Gleam&Glam Face Serum** ki photo. [IMAGE: ${mediaPaths.images.faceSerum}]` };
     if (lastUserMessage.includes("anushka")) return { reply: `Yeh lijiye Anushka ka video. [VIDEO: ${mediaPaths.videos.anushkaVideo}]` };
     return null;
 }
 
-/**
- * Gets a response from the AI, trying primary models first, then fallbacks.
- * This is the high-performance "failover" logic for production.
- */
 async function handleDefaultAIResponse({ message, systemPromptContent }) {
     const recentMessages = message.slice(-6).map(({ role, content }) => ({ role, content }));
     const allMessages = [{ role: 'system', content: systemPromptContent }, ...recentMessages];
@@ -172,7 +156,6 @@ async function handleDefaultAIResponse({ message, systemPromptContent }) {
         }
     }
     
-    // This is the final fallback if ALL models fail
     console.error("❌ All models failed. Sending a default fallback message.");
     throw new Error("All AI models are currently unavailable.");
 }
@@ -180,37 +163,11 @@ async function handleDefaultAIResponse({ message, systemPromptContent }) {
 
 // --- ROUTE HANDLERS (CONTROLLERS) ---
 
-/**
- * Controller to handle fetching chat history.
- */
 const getChatHistory = async (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization;
-        const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
-        let history = [];
-
-        if (token) {
-            const userProfile = await getUserProfile(token);
-            if (userProfile?.data?.unique_id) {
-                const userId = userProfile.data.unique_id;
-                const sql = "SELECT sender, message, created_at FROM chats WHERE user_id = ? ORDER BY created_at ASC";
-                const [rows] = await db.promise().query(sql, [userId]);
-                history = rows.map(chat => ({
-                    role: chat.sender,
-                    content: chat.message,
-                    timestamp: new Date(chat.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                }));
-            }
-        }
-        res.json({ history });
-    } catch (error) {
-        next(error); // Pass errors to the global error handler
-    }
+    // Database logic hata diya. Hamesha khaali history bhejega.
+    res.json({ history: [] });
 };
 
-/**
- * Controller to handle incoming chat messages.
- */
 const postChatMessage = async (req, res, next) => {
     try {
         const { message, token, isRegistered, replyTo, guestId } = req.body;
@@ -225,7 +182,7 @@ const postChatMessage = async (req, res, next) => {
             userName = userProfile?.data?.first_name || "Dost";
         }
 
-        await saveChatMessage(userProfile, guestId, 'user', lastUserMessage);
+        // Database save logic (saveChatMessage) hata diya
 
         const lastUserMessageLower = lastUserMessage.toLowerCase();
         const profileKeywords = ["profile", "balance", "paisa", "kamai"];
@@ -244,7 +201,7 @@ const postChatMessage = async (req, res, next) => {
             responsePayload = await handleDownlineQuery({ token, userName, userLanguage });
         } else if (isMediaQuery) {
             responsePayload = await handleMediaQuery({ userName, lastUserMessage: lastUserMessageLower });
-            if (!responsePayload) { // If media keyword was found but no specific media, fallback to AI
+            if (!responsePayload) { 
                 const systemPromptContent = getSystemPrompt(isRegistered, userName, replyTo);
                 responsePayload = await handleDefaultAIResponse({ message, systemPromptContent });
             }
@@ -253,19 +210,14 @@ const postChatMessage = async (req, res, next) => {
             responsePayload = await handleDefaultAIResponse({ message, systemPromptContent });
         }
 
-        if (responsePayload.reply) {
-            await saveChatMessage(userProfile, guestId, 'arsha', responsePayload.reply);
-        }
+        // Database save logic (saveChatMessage) hata diya
 
         res.json(responsePayload);
     } catch (error) {
-        next(error); // Pass errors to the global error handler
+        next(error); 
     }
 };
 
-/**
- * Middleware for validating the chat request body.
- */
 const validateChatRequest = (req, res, next) => {
     const { message, isRegistered, guestId } = req.body;
     if (!message || !Array.isArray(message) || message.length === 0) {
@@ -284,7 +236,6 @@ app.post('/chat', validateChatRequest, postChatMessage);
 
 
 // --- GLOBAL ERROR HANDLER ---
-// This middleware will catch any error passed to `next()`
 app.use((err, req, res, next) => {
     console.error('Unhandled API Error:', err.stack);
     res.status(500).json({ 
@@ -296,5 +247,4 @@ app.use((err, req, res, next) => {
 // --- SERVER INITIALIZATION ---
 app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Arsha's server running on port: ${port}`);
-    console.log(`✅ Arsha connected to live DB via connection pool`);
 });
