@@ -28,9 +28,23 @@ app.set('trust proxy', 1);
 // --- END FIX ---
 
 app.use(helmet());
+
+// --- FIX YAHAN HAI: CORS ko multiple origins handle karne dein ---
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',');
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN, // Yeh Render ke Environment se aayega
+    origin: function (origin, callback) {
+        // 'origin' undefined hota hai (jaise Postman se request karne par)
+        // Ya agar origin list mein hai, toh usey allow karo
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    }
 }));
+// --- END FIX ---
+
 app.use(bodyParser.json());
 
 const apiLimiter = rateLimit({
