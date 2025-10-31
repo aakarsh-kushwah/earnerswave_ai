@@ -244,7 +244,6 @@ app.use((err, req, res, next) => {
 });
 
 
-// --- SERVER INITIALIZATION ---
 app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Arsha's server running on port: ${port}`);
 });
